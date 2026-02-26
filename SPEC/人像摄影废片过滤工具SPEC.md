@@ -412,37 +412,6 @@ class Feedback:
   3. 记录更新日志
 ```
 
-#### 4.5.4 准确率追踪系统
-```python
-class AccuracyTracker:
-    """准确率追踪器"""
-    def __init__(self):
-        self.metrics = []
-    
-    def record_feedback(self, prediction, user_decision):
-        """记录反馈数据"""
-        is_correct = (prediction == user_decision)
-        self.metrics.append({
-            'timestamp': datetime.now(),
-            'is_correct': is_correct,
-            'confidence': prediction.confidence
-        })
-    
-    def calculate_accuracy(self, window_size=100):
-        """计算滑动窗口准确率"""
-        recent_metrics = self.metrics[-window_size:]
-        correct = sum(1 for m in recent_metrics if m['is_correct'])
-        return correct / len(recent_metrics) if recent_metrics else 0
-    
-    def get_accuracy_trend(self):
-        """获取准确率趋势"""
-        window_sizes = [10, 50, 100, 500]
-        return {
-            size: self.calculate_accuracy(size)
-            for size in window_sizes
-        }
-```
-
 #### 4.5.5 模型训练API端点
 ```
 POST   /api/feedback/record       # 记录用户反馈
