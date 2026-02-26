@@ -17,6 +17,7 @@ from .json_manager import get_json_file_path, is_photo_exists, JsonFileManager
 from .utils import scan_folder
 from .progress_tracker import ProgressTracker
 from .exceptions import FileImportError, UnsupportedFormatError, FileCorruptedError
+from .thumbnail_generator import generate_thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +26,20 @@ def process_single_file(
     file_path: str,
     folder_path: str,
     skip_existing: bool = False,
-    json_file_manager: Optional[JsonFileManager] = None
+    json_file_manager: Optional[JsonFileManager] = None,
+    generate_thumb: bool = True,
+    thumbnail_size: tuple = (200, 200)
 ) -> Optional[PhotoMetadata]:
     """
-    处理单个图片文件，提取元数据
+    处理单个图片文件，提取元数据并生成缩略图
     
     Args:
         file_path: 图片文件路径
         folder_path: 文件夹路径
         skip_existing: 是否跳过已存在的文件
         json_file_manager: JSON文件管理器对象
+        generate_thumb: 是否生成缩略图
+        thumbnail_size: 缩略图尺寸 (width, height)
         
     Returns:
         包含元数据的PhotoMetadata对象，失败返回None
@@ -52,6 +57,20 @@ def process_single_file(
             if json_file_manager.exists(metadata.file_info.hash):
                 logger.info(f"Skipping existing file: {file_path}")
                 return None
+        
+        # 生成缩略图
+        if generate_thumb:
+            thumbnail_path = generate_thumbnail(
+                file_path=file_path,
+                thumbnail_size=thumbnail_size,
+                quality=85,
+                fit_mode="cover"
+            )
+            if thumbnail_path:
+                metadata.file_info.thumbnail_path = thumbnail_path
+                logger.debug(f"Generated thumbnail for {file_path}")
+            else:
+                logger.warning(f"Failed to generate thumbnail for {file_path}")
         
         return metadata
         
@@ -262,7 +281,8 @@ def import_folder(
         "skipped_files": skipped_count,
         "error_files": error_count,
         "errors": errors,
-        "json_file_path": json_file_path
+        "json_file_path": json_file_path,
+        "folder_path": folder_path  # 添加文件夹路径
     }
     
     logger.info(f"导入完成: {result}")

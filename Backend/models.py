@@ -85,6 +85,7 @@ class FileInfo:
     creation_time: str
     modification_time: Optional[str] = None
     hash: str = ""
+    thumbnail_path: str = ""
 
 
 @dataclass

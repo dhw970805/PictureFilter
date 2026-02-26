@@ -288,9 +288,11 @@ class MainWindow(QMainWindow):
         
         # 显示导入统计
         json_file_path = result.get('json_file_path', '')
+        folder_path = result.get('folder_path', '')
+        
         if success and json_file_path:
             from Backend import get_import_stats
-            stats = get_import_stats(result.get('folder_path', ''))
+            stats = get_import_stats(folder_path)
             if stats:
                 print(f"\n统计信息:")
                 print(f"  总照片数: {stats.get('total_photos', 0)}")
@@ -299,6 +301,9 @@ class MainWindow(QMainWindow):
                     print(f"  质量统计:")
                     for quality, count in quality_stats.items():
                         print(f"    {quality}: {count}")
+            
+            # 加载照片到中央内容区（显示缩略图）
+            self.center_content_area.load_photos(folder_path)
         
         # 清理工作线程
         self.import_worker = None
