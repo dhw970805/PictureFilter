@@ -1,0 +1,16 @@
+# Backend dependencies for PictureFilter
+
+# Image processing
+Pillow>=10.0.0
+
+# Optional: For RAW format support
+# rawpy>=0.18.0
+
+# Optional: For HEIC/HEIF format support
+# pillow-heif>=0.13.0
+
+# Optional: For additional EXIF extraction
+# exifread>=3.0.0
+
+# Logging (optional, for better log formatting)
+# colorlog>=6.8.0

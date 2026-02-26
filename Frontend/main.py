@@ -7,8 +7,12 @@
 """
 
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QSizePolicy
-from PyQt6.QtCore import Qt
+import os
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QSizePolicy, QFileDialog
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+
+# 添加 Backend 路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from TopMenuBar.top_menu_bar import TopMenuBar
 from ToolBar.tool_bar import ToolBar
@@ -16,6 +20,35 @@ from LeftPanel.left_panel import LeftPanel
 from CenterContentArea.center_content_area import CenterContentArea
 from RightPropertyPanel.right_property_panel import RightPropertyPanel
 from BottomStatusPanel.bottom_status_panel import BottomStatusPanel
+
+
+class ImportWorker(QThread):
+    """
+    后台导入工作线程
+    """
+    progress_updated = pyqtSignal(dict)
+    import_completed = pyqtSignal(dict)
+    
+    def __init__(self, folder_path, recursive=False):
+        super().__init__()
+        self.folder_path = folder_path
+        self.recursive = recursive
+    
+    def run(self):
+        """执行导入操作"""
+        from Backend import import_folder
+        
+        def progress_callback(progress):
+            self.progress_updated.emit(progress)
+        
+        result = import_folder(
+            folder_path=self.folder_path,
+            recursive=self.recursive,
+            skip_existing=True,
+            progress_callback=progress_callback
+        )
+        
+        self.import_completed.emit(result)
 
 
 class MainWindow(QMainWindow):
@@ -33,6 +66,9 @@ class MainWindow(QMainWindow):
         if self.application:
             self.application.setApplicationName("PictureFilter")
             self.application.setApplicationVersion("1.0.0")
+        
+        # 导入工作线程
+        self.import_worker = None
         
         # 创建主界面
         self.setup_ui()
@@ -105,6 +141,9 @@ class MainWindow(QMainWindow):
     
     def connect_signals(self):
         """连接组件信号"""
+        # 连接菜单栏导入信号
+        self.top_menu_bar.import_folder_requested.connect(self.on_import_folder_requested)
+        
         # 连接中央内容区信号
         self.center_content_area.file_selected.connect(self.on_file_selected)
         self.center_content_area.file_opened.connect(self.on_file_opened)
@@ -173,6 +212,96 @@ class MainWindow(QMainWindow):
     def on_file_info_changed(self, file_info):
         """文件信息变化处理"""
         print(f"文件信息更新: {file_info}")
+    
+    def on_import_folder_requested(self):
+        """导入文件夹请求处理"""
+        # 如果正在导入，则忽略
+        if self.import_worker and self.import_worker.isRunning():
+            return
+        
+        # 选择文件夹
+        folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "选择照片文件夹",
+            ""
+        )
+        
+        if not folder_path:
+            return
+        
+        # 更新状态栏
+        self.bottom_status_bar.update_path(f"导入: {folder_path}")
+        # 使用 load_label 显示导入状态
+        self.bottom_status_bar.load_label.setText("正在导入...")
+        
+        # 创建并启动导入工作线程
+        self.import_worker = ImportWorker(folder_path, recursive=True)
+        self.import_worker.progress_updated.connect(self.on_import_progress)
+        self.import_worker.import_completed.connect(self.on_import_completed)
+        self.import_worker.start()
+    
+    def on_import_progress(self, progress):
+        """导入进度更新"""
+        percentage = progress.get('percentage', 0)
+        imported = progress.get('imported', 0)
+        errors = progress.get('errors', 0)
+        total = progress.get('total', 0)
+        
+        # 更新状态栏
+        status_text = f"导入中: {int(percentage)}% ({imported}/{total} 已导入, {errors} 错误)"
+        self.bottom_status_bar.load_label.setText(status_text)
+        
+        print(f"导入进度: {status_text}")
+    
+    def on_import_completed(self, result):
+        """导入完成"""
+        success = result.get('success', False)
+        total_files = result.get('total_files', 0)
+        imported_files = result.get('imported_files', 0)
+        skipped_files = result.get('skipped_files', 0)
+        error_files = result.get('error_files', 0)
+        errors = result.get('errors', [])
+        
+        # 更新状态栏
+        if success:
+            status_text = f"导入完成: {imported_files} 个文件"
+            self.bottom_status_bar.load_label.setText(status_text)
+            self.bottom_status_bar.update_stats(imported_files, 0)
+        else:
+            status_text = f"导入失败: {error_files} 个错误"
+            self.bottom_status_bar.load_label.setText(status_text)
+        
+        # 打印结果
+        print(f"\n导入结果:")
+        print(f"  状态: {'成功' if success else '失败'}")
+        print(f"  总文件数: {total_files}")
+        print(f"  已导入: {imported_files}")
+        print(f"  已跳过: {skipped_files}")
+        print(f"  错误文件: {error_files}")
+        
+        if errors:
+            print(f"\n错误详情:")
+            for error in errors[:5]:  # 只显示前5个错误
+                print(f"  - {error}")
+            if len(errors) > 5:
+                print(f"  ... 还有 {len(errors) - 5} 个错误")
+        
+        # 显示导入统计
+        json_file_path = result.get('json_file_path', '')
+        if success and json_file_path:
+            from Backend import get_import_stats
+            stats = get_import_stats(result.get('folder_path', ''))
+            if stats:
+                print(f"\n统计信息:")
+                print(f"  总照片数: {stats.get('total_photos', 0)}")
+                quality_stats = stats.get('quality_stats', {})
+                if quality_stats:
+                    print(f"  质量统计:")
+                    for quality, count in quality_stats.items():
+                        print(f"    {quality}: {count}")
+        
+        # 清理工作线程
+        self.import_worker = None
 
 
 def main():

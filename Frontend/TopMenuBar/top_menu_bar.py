@@ -4,12 +4,15 @@
 
 from PyQt6.QtWidgets import QMenuBar, QMenu
 from PyQt6.QtGui import QAction, QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 import sys
 
 
 class TopMenuBar(QMenuBar):
     """顶部菜单栏组件"""
+    
+    # 定义信号
+    import_folder_requested = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -221,6 +224,7 @@ class TopMenuBar(QMenuBar):
         # 导入
         import_action = QAction("导入(&I)", self)
         import_action.setShortcut("Ctrl+I")
+        import_action.triggered.connect(self.import_folder_requested)
         file_menu.addAction(import_action)
         
         # 导出
