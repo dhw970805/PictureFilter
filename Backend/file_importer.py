@@ -28,7 +28,8 @@ def process_single_file(
     skip_existing: bool = False,
     json_file_manager: Optional[JsonFileManager] = None,
     generate_thumb: bool = True,
-    thumbnail_size: tuple = (200, 200)
+    thumbnail_size: tuple = (200, 200),
+    force_regenerate_thumbnail: bool = False
 ) -> Optional[PhotoMetadata]:
     """
     处理单个图片文件，提取元数据并生成缩略图
@@ -40,6 +41,7 @@ def process_single_file(
         json_file_manager: JSON文件管理器对象
         generate_thumb: 是否生成缩略图
         thumbnail_size: 缩略图尺寸 (width, height)
+        force_regenerate_thumbnail: 是否强制重新生成缩略图
         
     Returns:
         包含元数据的PhotoMetadata对象，失败返回None
@@ -60,17 +62,32 @@ def process_single_file(
         
         # 生成缩略图
         if generate_thumb:
-            thumbnail_path = generate_thumbnail(
-                file_path=file_path,
-                thumbnail_size=thumbnail_size,
-                quality=85,
-                fit_mode="cover"
-            )
-            if thumbnail_path:
-                metadata.file_info.thumbnail_path = thumbnail_path
-                logger.debug(f"Generated thumbnail for {file_path}")
+            # 检查缩略图是否已存在
+            from .thumbnail_generator import get_thumbnail_path
+            expected_thumbnail_path = get_thumbnail_path(file_path, thumbnail_size)
+            
+            thumbnail_exists = os.path.exists(expected_thumbnail_path)
+            
+            if not force_regenerate_thumbnail and thumbnail_exists:
+                # 缩略图已存在，直接使用
+                metadata.file_info.thumbnail_path = expected_thumbnail_path
+                logger.debug(f"Using existing thumbnail for {file_path}: {expected_thumbnail_path}")
             else:
-                logger.warning(f"Failed to generate thumbnail for {file_path}")
+                # 生成新缩略图
+                thumbnail_path = generate_thumbnail(
+                    file_path=file_path,
+                    thumbnail_size=thumbnail_size,
+                    quality=85,
+                    fit_mode="cover"
+                )
+                if thumbnail_path:
+                    metadata.file_info.thumbnail_path = thumbnail_path
+                    if thumbnail_exists and force_regenerate_thumbnail:
+                        logger.debug(f"Regenerated thumbnail for {file_path}")
+                    else:
+                        logger.debug(f"Generated thumbnail for {file_path}")
+                else:
+                    logger.warning(f"Failed to generate thumbnail for {file_path}")
         
         return metadata
         
@@ -85,7 +102,8 @@ def import_folder(
     skip_existing: bool = True,
     file_filters: Optional[Dict] = None,
     progress_callback: Optional[Callable[[Dict], None]] = None,
-    max_workers: int = 4
+    max_workers: int = 4,
+    thumbnail_size: tuple = (200, 200)
 ) -> Dict:
     """
     导入文件夹中的所有图片
@@ -97,6 +115,7 @@ def import_folder(
         file_filters: 文件过滤条件
         progress_callback: 进度回调函数
         max_workers: 最大并发线程数
+        thumbnail_size: 缩略图尺寸 (width, height)
         
     Returns:
         {
@@ -106,7 +125,8 @@ def import_folder(
             "skipped_files": int,
             "error_files": int,
             "errors": List[str],
-            "json_file_path": str
+            "json_file_path": str,
+            "folder_path": str
         }
     """
     # 验证文件夹路径
@@ -118,7 +138,8 @@ def import_folder(
             "skipped_files": 0,
             "error_files": 0,
             "errors": [f"文件夹不存在: {folder_path}"],
-            "json_file_path": None
+            "json_file_path": None,
+            "folder_path": folder_path
         }
     
     if not os.path.isdir(folder_path):
@@ -129,7 +150,8 @@ def import_folder(
             "skipped_files": 0,
             "error_files": 0,
             "errors": [f"路径不是文件夹: {folder_path}"],
-            "json_file_path": None
+            "json_file_path": None,
+            "folder_path": folder_path
         }
     
     # 获取JSON文件路径
@@ -149,7 +171,7 @@ def import_folder(
             if file_hash:
                 existing_hashes.add(file_hash)
     
-    # 扫描文件夹
+    # 扫描文件夹（自动忽略 .thumbnails 文件夹）
     image_files = scan_folder(folder_path, recursive)
     
     if not image_files:
@@ -161,7 +183,8 @@ def import_folder(
             "skipped_files": 0,
             "error_files": 0,
             "errors": [],
-            "json_file_path": json_file_path
+            "json_file_path": json_file_path,
+            "folder_path": folder_path
         }
     
     # 过滤已存在的文件
@@ -171,11 +194,14 @@ def import_folder(
             metadata = extract_metadata(file_path, folder_path)
             if metadata and metadata.file_info.hash not in existing_hashes:
                 files_to_process.append(file_path)
+            else:
+                logger.debug(f"文件已存在，跳过: {file_path}")
     else:
         files_to_process = image_files
     
     total_files = len(files_to_process)
-    logger.info(f"找到 {len(image_files)} 个图片文件，需要处理 {total_files} 个")
+    total_found = len(image_files)
+    logger.info(f"找到 {total_found} 个图片文件，需要处理 {total_files} 个（{total_found - total_files} 个已存在）")
     
     # 初始化进度跟踪器
     progress = ProgressTracker(total_files)
@@ -200,7 +226,9 @@ def import_folder(
                     file_path,
                     folder_path,
                     skip_existing,
-                    None  # 不使用 json_manager，避免并发写入
+                    None,  # 不使用 json_manager，避免并发写入
+                    True,  # generate_thumb
+                    thumbnail_size
                 ): file_path
                 for file_path in files_to_process
             }
@@ -278,14 +306,14 @@ def import_folder(
         "success": error_count == 0,
         "total_files": total_files,
         "imported_files": imported_count,
-        "skipped_files": skipped_count,
+        "skipped_files": skipped_count + (total_found - total_files),  # 包括已有的文件
         "error_files": error_count,
         "errors": errors,
         "json_file_path": json_file_path,
-        "folder_path": folder_path  # 添加文件夹路径
+        "folder_path": folder_path
     }
     
-    logger.info(f"导入完成: {result}")
+    logger.info(f"导入完成: 找到 {total_found} 张照片，导入 {imported_count} 张，跳过 {result['skipped_files']} 张，错误 {error_count} 张")
     return result
 
 

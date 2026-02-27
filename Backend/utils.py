@@ -194,7 +194,8 @@ def get_file_timestamps(file_path: str) -> tuple:
 def scan_folder(
     folder_path: str,
     recursive: bool = False,
-    include_files: Optional[Set[str]] = None
+    include_files: Optional[Set[str]] = None,
+    ignore_folders: Optional[Set[str]] = None
 ) -> List[str]:
     """
     扫描文件夹，返回所有支持的图片文件路径
@@ -203,6 +204,7 @@ def scan_folder(
         folder_path: 文件夹路径
         recursive: 是否递归扫描子文件夹
         include_files: 包含的文件集合（用于过滤重复）
+        ignore_folders: 要忽略的文件夹名称集合
         
     Returns:
         图片文件路径列表
@@ -211,17 +213,38 @@ def scan_folder(
     if not folder.exists() or not folder.is_dir():
         return []
     
+    # 默认忽略 .thumbnails 文件夹
+    if ignore_folders is None:
+        ignore_folders = {'.thumbnails'}
+    
     image_files = []
+    
+    # 检查路径是否在被忽略的文件夹中
+    def should_ignore(path: Path) -> bool:
+        """检查路径是否在被忽略的文件夹中"""
+        # 检查路径的所有父目录
+        for parent in path.parents:
+            if parent.name in ignore_folders:
+                return True
+        return False
     
     if recursive:
         # 递归扫描
         for file_path in folder.rglob('*'):
+            # 跳过被忽略的文件夹中的文件
+            if should_ignore(file_path):
+                continue
+            
             if file_path.is_file() and is_supported_image_file(str(file_path)):
                 if include_files is None or str(file_path) not in include_files:
                     image_files.append(str(file_path))
     else:
         # 单层扫描
         for file_path in folder.glob('*'):
+            # 跳过被忽略的文件夹
+            if file_path.parent.name in ignore_folders:
+                continue
+            
             if file_path.is_file() and is_supported_image_file(str(file_path)):
                 if include_files is None or str(file_path) not in include_files:
                     image_files.append(str(file_path))

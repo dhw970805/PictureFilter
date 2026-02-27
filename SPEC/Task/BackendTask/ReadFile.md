@@ -181,7 +181,7 @@
           "compression": "JPEG",
           "software": "Adobe Photoshop"
         },
-        "quality": "未审查"
+        "quality": ["未审查"]
       }
     }
   ]

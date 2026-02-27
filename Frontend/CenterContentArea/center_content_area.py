@@ -398,8 +398,14 @@ class CenterContentArea(QWidget):
                 if not photo_metadata:
                     print(f"⚠️  照片 {i+1} 缺少 photo_metadata，尝试直接从 photo_data 读取")
                     file_info = photo_data.get("file_info", {})
+                    # 获取质量信息（数组格式）
+                    quality_list = photo_data.get("quality", ["未审查"])
+                    quality = quality_list[0] if quality_list else "未审查"
                 else:
                     file_info = photo_metadata.get("file_info", {})
+                    # 获取质量信息（数组格式）
+                    quality_list = photo_data.get("quality", ["未审查"])
+                    quality = quality_list[0] if quality_list else "未审查"
                 
                 file_path = file_info.get("file_path", "")
                 file_name = file_info.get("file_name", "")
@@ -408,36 +414,30 @@ class CenterContentArea(QWidget):
                 print(f"  {i+1}. {file_name}")
                 print(f"     文件路径: {file_path}")
                 print(f"     缩略图路径: {thumbnail_path}")
+                print(f"     质量: {quality}")
                 
-                files_to_display.append((file_path, file_name, thumbnail_path))
+                files_to_display.append((file_path, file_name, thumbnail_path, quality))
             
             print(f"✅ 准备显示 {len(files_to_display)} 张照片")
         else:
             print("ℹ️  没有照片数据，使用示例数据")
             # 使用示例数据
             files_to_display = [
-                ("image1.jpg", "风景照片", ""),
-                ("image2.png", "产品图片", ""),
-                ("image3.jpg", "人物照片", ""),
-                ("video1.mp4", "演示视频", ""),
-                ("image4.jpg", "建筑照片", ""),
-                ("document.pdf", "项目文档", ""),
-                ("image5.jpg", "食物照片", ""),
-                ("archive.zip", "文件压缩包", ""),
-                ("image6.jpg", "动物照片", ""),
-                ("image7.jpg", "花朵照片", ""),
-                ("image8.jpg", "汽车照片", ""),
-                ("image9.jpg", "天空照片", ""),
-                ("image10.jpg", "山峰照片", ""),
-                ("image11.jpg", "海洋照片", ""),
-                ("image12.jpg", "森林照片", "")
+                ("image1.jpg", "风景照片", "", "未审查"),
+                ("image2.png", "产品图片", "", "优质"),
+                ("image3.jpg", "人物照片", "", "闭眼"),
+                ("video1.mp4", "演示视频", "", "模糊"),
+                ("image4.jpg", "建筑照片", "", "过暗"),
+                ("document.pdf", "项目文档", "", "过曝"),
+                ("image5.jpg", "食物照片", "", "需复核"),
+                ("archive.zip", "文件压缩包", "", "表情不佳")
             ]
         
         # 添加统计标签
         self.stats_label.setText(f"共 {len(files_to_display)} 个文件")
         
-        for i, (file_path, name, thumbnail_path) in enumerate(files_to_display):
-            file_item = self.create_grid_item(file_path, name, thumbnail_path)
+        for i, (file_path, name, thumbnail_path, quality) in enumerate(files_to_display):
+            file_item = self.create_grid_item(file_path, name, thumbnail_path, quality)
             row = i // self.grid_columns
             col = i % self.grid_columns
             grid_widget_layout.addWidget(file_item, row, col)
@@ -453,8 +453,24 @@ class CenterContentArea(QWidget):
         # 添加到内容布局
         self.content_layout.addWidget(grid_container)
     
+    def get_quality_color(self, quality: str) -> tuple:
+        """根据质量值返回颜色（RGB）"""
+        color_map = {
+            "未审查": (255, 215, 0),    # 黄色
+            "优质": (34, 197, 94),      # 绿色
+            "闭眼": (239, 68, 68),      # 红色
+            "模糊": (168, 85, 247),      # 紫色
+            "过暗": (249, 115, 22),     # 橙色
+            "过曝": (107, 114, 128),    # 灰色
+            "需复核": (59, 130, 246),   # 亮蓝色
+            "表情不佳": (6, 182, 212)   # 青色
+        }
+        return color_map.get(quality, (255, 215, 0))  # 默认黄色
+    
     def create_list_view(self):
         """创建列表视图"""
+        print("🔍 创建列表视图")
+        
         # 创建表格
         self.list_table = QTableWidget()
         self.list_table.setColumnCount(6)
@@ -502,30 +518,78 @@ class CenterContentArea(QWidget):
         # 设置行高
         self.list_table.verticalHeader().setDefaultSectionSize(50)
         
-        # 添加示例数据
-        sample_files = [
-            ("image1.jpg", "风景照片.jpg", "2.5 MB", "2024-01-15", "JPG", "1920×1080"),
-            ("image2.png", "产品图片.png", "1.8 MB", "2024-01-14", "PNG", "1280×720"),
-            ("image3.jpg", "人物照片.jpg", "3.2 MB", "2024-01-13", "JPG", "2560×1440"),
-            ("video1.mp4", "演示视频.mp4", "15.6 MB", "2024-01-12", "MP4", "1920×1080"),
-            ("image4.jpg", "建筑照片.jpg", "2.1 MB", "2024-01-11", "JPG", "1440×900")
-        ]
+        # 使用实际照片数据或示例数据
+        files_to_display = []
+        if self.photos_data:
+            print(f"📊 加载 {len(self.photos_data)} 张照片到列表视图")
+            for photo_data in self.photos_data:
+                # 检查数据结构
+                photo_metadata = photo_data.get("photo_metadata", {})
+                if not photo_metadata:
+                    file_info = photo_data.get("file_info", {})
+                else:
+                    file_info = photo_metadata.get("file_info", {})
+                
+                file_path = file_info.get("file_path", "")
+                file_name = file_info.get("file_name", "")
+                thumbnail_path = file_info.get("thumbnail_path", "")
+                file_size = file_info.get("file_size_bytes", 0)
+                file_format = file_info.get("file_format", "")
+                modification_time = file_info.get("modification_time", "")
+                
+                # 获取图像信息
+                image_info = photo_metadata.get("image_info", {})
+                width = image_info.get("width", 0)
+                height = image_info.get("height", 0)
+                resolution = f"{width}×{height}" if width and height else "N/A"
+                
+                # 格式化文件大小
+                size_str = self._format_file_size(file_size)
+                
+                # 格式化日期
+                date_str = self._format_date(modification_time)
+                
+                files_to_display.append((
+                    file_path, file_name, thumbnail_path,
+                    size_str, date_str, file_format, resolution
+                ))
+        else:
+            print("ℹ️  没有照片数据，使用示例数据")
+            # 使用示例数据
+            files_to_display = [
+                ("image1.jpg", "风景照片.jpg", "", "2.5 MB", "2024-01-15", "JPG", "1920×1080"),
+                ("image2.png", "产品图片.png", "", "1.8 MB", "2024-01-14", "PNG", "1280×720"),
+                ("image3.jpg", "人物照片.jpg", "", "3.2 MB", "2024-01-13", "JPG", "2560×1440"),
+                ("video1.mp4", "演示视频.mp4", "", "15.6 MB", "2024-01-12", "MP4", "1920×1080"),
+                ("image4.jpg", "建筑照片.jpg", "", "2.1 MB", "2024-01-11", "JPG", "1440×900")
+            ]
         
-        self.list_table.setRowCount(len(sample_files))
+        self.list_table.setRowCount(len(files_to_display))
         
-        for row, (filename, name, size, date, type_, resolution) in enumerate(sample_files):
+        for row, (file_path, name, thumbnail_path, size, date, type_, resolution) in enumerate(files_to_display):
             # 缩略图
             thumb_label = QLabel()
             thumb_label.setFixedSize(50, 50)
             thumb_label.setStyleSheet("background-color: #333333; border-radius: 4px;")
             thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            thumb_label.setText("📷")
+            
+            # 尝试加载缩略图
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                pixmap = QPixmap(thumbnail_path)
+                if not pixmap.isNull():
+                    scaled_pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    thumb_label.setPixmap(scaled_pixmap)
+                else:
+                    thumb_label.setText("📷")
+            else:
+                thumb_label.setText("📷")
             
             self.list_table.setCellWidget(row, 0, thumb_label)
             
             # 名称
             name_item = QTableWidgetItem(name)
             name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            name_item.setData(Qt.ItemDataRole.UserRole, file_path)  # 保存文件路径
             self.list_table.setItem(row, 1, name_item)
             
             # 大小
@@ -548,6 +612,9 @@ class CenterContentArea(QWidget):
             resolution_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             self.list_table.setItem(row, 5, resolution_item)
         
+        # 更新统计标签
+        self.stats_label.setText(f"共 {len(files_to_display)} 个文件")
+        
         # 连接排序信号
         self.list_table.horizontalHeader().sectionClicked.connect(self.on_header_clicked)
         
@@ -559,6 +626,8 @@ class CenterContentArea(QWidget):
     
     def create_detail_view(self):
         """创建详情视图"""
+        print("🔍 创建详情视图")
+        
         # 创建主布局
         detail_layout = QHBoxLayout()
         detail_layout.setSpacing(20)
@@ -581,7 +650,26 @@ class CenterContentArea(QWidget):
         self.preview_image.setFixedSize(360, 360)
         self.preview_image.setStyleSheet("background-color: #333333; border-radius: 4px;")
         self.preview_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_image.setText("🖼️\n大图预览")
+        
+        # 使用实际照片数据或示例数据
+        if self.photos_data:
+            # 显示第一张照片的缩略图
+            photo_data = self.photos_data[0]
+            photo_metadata = photo_data.get("photo_metadata", {})
+            file_info = photo_metadata.get("file_info", {})
+            thumbnail_path = file_info.get("thumbnail_path", "")
+            
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                pixmap = QPixmap(thumbnail_path)
+                if not pixmap.isNull():
+                    scaled_pixmap = pixmap.scaled(360, 360, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    self.preview_image.setPixmap(scaled_pixmap)
+                else:
+                    self.preview_image.setText("🖼️\n大图预览")
+            else:
+                self.preview_image.setText("🖼️\n大图预览")
+        else:
+            self.preview_image.setText("🖼️\n大图预览")
         
         preview_layout.addWidget(self.preview_image)
         preview_layout.addStretch()
@@ -598,17 +686,37 @@ class CenterContentArea(QWidget):
         info_layout = QVBoxLayout(info_frame)
         info_layout.setContentsMargins(20, 20, 20, 20)
         
-        # 基本信息
-        info_group = self.create_info_group("基本信息")
-        info_layout.addWidget(info_group)
-        
-        # 元数据
-        metadata_group = self.create_info_group("元数据")
-        info_layout.addWidget(metadata_group)
-        
-        # 标签/评分
-        tag_group = self.create_info_group("标签/评分")
-        info_layout.addWidget(tag_group)
+        # 使用实际照片数据或示例数据
+        if self.photos_data:
+            # 显示第一张照片的详细信息
+            photo_data = self.photos_data[0]
+            photo_metadata = photo_data.get("photo_metadata", {})
+            file_info = photo_metadata.get("file_info", {})
+            image_info = photo_metadata.get("image_info", {})
+            camera_info = photo_metadata.get("camera_info", {})
+            exif_data = photo_metadata.get("exif_data", {})
+            
+            # 基本信息
+            info_group = self.create_basic_info_group(file_info, image_info)
+            info_layout.addWidget(info_group)
+            
+            # 元数据
+            metadata_group = self.create_metadata_group(camera_info, exif_data)
+            info_layout.addWidget(metadata_group)
+            
+            # 标签/评分
+            tag_group = self.create_tags_group()
+            info_layout.addWidget(tag_group)
+        else:
+            # 使用示例数据
+            info_group = self.create_info_group("基本信息")
+            info_layout.addWidget(info_group)
+            
+            metadata_group = self.create_info_group("元数据")
+            info_layout.addWidget(metadata_group)
+            
+            tag_group = self.create_info_group("标签/评分")
+            info_layout.addWidget(tag_group)
         
         info_layout.addStretch()
         
@@ -620,7 +728,7 @@ class CenterContentArea(QWidget):
         # 添加到内容布局
         self.content_layout.addLayout(detail_layout)
     
-    def create_grid_item(self, file_path, name, thumbnail_path):
+    def create_grid_item(self, file_path, name, thumbnail_path, quality="未审查"):
         """创建网格视图项"""
         item_frame = QFrame()
         item_frame.setFixedSize(self.thumbnail_size + 20, self.thumbnail_size + 60)
@@ -648,11 +756,15 @@ class CenterContentArea(QWidget):
         item_layout.setContentsMargins(10, 10, 10, 10)
         item_layout.setSpacing(5)
         
+        # 创建缩略图容器
+        thumbnail_container = QWidget()
+        thumbnail_container.setFixedSize(self.thumbnail_size, self.thumbnail_size)
+        
         # 缩略图
-        thumbnail = QLabel()
+        thumbnail = QLabel(thumbnail_container)
         thumbnail.setFixedSize(self.thumbnail_size, self.thumbnail_size)
-        thumbnail.setStyleSheet("background-color: #333333; border-radius: 4px;")
         thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        thumbnail.setStyleSheet("background-color: #333333; border-radius: 4px;")
         
         # 尝试加载缩略图
         if thumbnail_path and os.path.exists(thumbnail_path):
@@ -671,7 +783,29 @@ class CenterContentArea(QWidget):
         else:
             self._set_default_thumbnail(thumbnail, file_path)
         
-        item_layout.addWidget(thumbnail)
+        # 质量标签（覆盖在缩略图右上角）
+        quality_color = self.get_quality_color(quality)
+        color_css = f"rgb({quality_color[0]}, {quality_color[1]}, {quality_color[2]})"
+        
+        quality_label = QLabel(quality, thumbnail_container)
+        quality_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: {color_css};
+                color: #FFFFFF;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 10px;
+                font-weight: bold;
+            }}
+        """)
+        quality_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # 将质量标签定位到右上角（使用move方法）
+        quality_label.move(self.thumbnail_size - quality_label.width() - 5, 5)
+        quality_label.raise_()
+        
+        # 添加到布局
+        item_layout.addWidget(thumbnail_container)
         
         # 文件名
         name_label = QLabel(name)
@@ -1033,3 +1167,152 @@ class CenterContentArea(QWidget):
         print("🔄 刷新视图...")
         self.switch_view(self.current_view)
         print("✅ 视图刷新完成\n")
+    
+    def _format_file_size(self, size_bytes: int) -> str:
+        """格式化文件大小为人类可读格式"""
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.2f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.2f} PB"
+    
+    def _format_date(self, date_str: str) -> str:
+        """格式化日期字符串"""
+        if not date_str:
+            return "N/A"
+        
+        # 如果是ISO 8601格式（如：2024-01-15T14:30:00），只取日期部分
+        if "T" in date_str:
+            return date_str.split("T")[0]
+        
+        # 如果是完整的日期时间（如：2024-01-15 14:30:00），只取日期部分
+        if " " in date_str:
+            return date_str.split(" ")[0]
+        
+        return date_str
+    
+    def create_basic_info_group(self, file_info: dict, image_info: dict) -> QFrame:
+        """创建基本信息组"""
+        group = QFrame()
+        group.setStyleSheet("""
+            QFrame {
+                background-color: #1E1E1E;
+                border-radius: 4px;
+                border: 1px solid #333333;
+            }
+        """)
+        
+        layout = QVBoxLayout(group)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # 标题
+        title_label = QLabel("基本信息")
+        title_label.setStyleSheet("color: #4A9EFF; font-size: 12px; font-weight: bold;")
+        layout.addWidget(title_label)
+        
+        # 信息项
+        info_items = [
+            ("文件名:", file_info.get("file_name", "N/A")),
+            ("大小:", self._format_file_size(file_info.get("file_size_bytes", 0))),
+            ("格式:", file_info.get("file_format", "N/A")),
+            ("分辨率:", f"{image_info.get('width', 0)}×{image_info.get('height', 0)}"),
+            ("创建时间:", self._format_date(file_info.get("creation_time", ""))),
+            ("修改时间:", self._format_date(file_info.get("modification_time", "")))
+        ]
+        
+        for label_text, value_text in info_items:
+            # 标签
+            label = QLabel(label_text)
+            label.setStyleSheet("color: #CCCCCC; font-size: 11px;")
+            layout.addWidget(label)
+            
+            # 值
+            value = QLabel(value_text)
+            value.setStyleSheet("color: #FFFFFF; font-size: 11px;")
+            layout.addWidget(value)
+        
+        return group
+    
+    def create_metadata_group(self, camera_info: dict, exif_data: dict) -> QFrame:
+        """创建元数据组"""
+        group = QFrame()
+        group.setStyleSheet("""
+            QFrame {
+                background-color: #1E1E1E;
+                border-radius: 4px;
+                border: 1px solid #333333;
+            }
+        """)
+        
+        layout = QVBoxLayout(group)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # 标题
+        title_label = QLabel("元数据")
+        title_label.setStyleSheet("color: #4A9EFF; font-size: 12px; font-weight: bold;")
+        layout.addWidget(title_label)
+        
+        # 信息项
+        info_items = [
+            ("相机型号:", camera_info.get("make", "") + " " + camera_info.get("model", "")),
+            ("镜头:", camera_info.get("lens_model", "N/A")),
+            ("光圈:", f"f/{exif_data.get('aperture_value', 'N/A')}"),
+            ("快门速度:", exif_data.get("exposure_time", "N/A")),
+            ("ISO:", str(exif_data.get("iso_speed_ratings", "N/A"))),
+            ("焦距:", f"{exif_data.get('focal_length', 'N/A')}mm")
+        ]
+        
+        for label_text, value_text in info_items:
+            # 标签
+            label = QLabel(label_text)
+            label.setStyleSheet("color: #CCCCCC; font-size: 11px;")
+            layout.addWidget(label)
+            
+            # 值
+            value = QLabel(value_text)
+            value.setStyleSheet("color: #FFFFFF; font-size: 11px;")
+            layout.addWidget(value)
+        
+        return group
+    
+    def create_tags_group(self) -> QFrame:
+        """创建标签/评分组"""
+        group = QFrame()
+        group.setStyleSheet("""
+            QFrame {
+                background-color: #1E1E1E;
+                border-radius: 4px;
+                border: 1px solid #333333;
+            }
+        """)
+        
+        layout = QVBoxLayout(group)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        # 标题
+        title_label = QLabel("标签/评分")
+        title_label.setStyleSheet("color: #4A9EFF; font-size: 12px; font-weight: bold;")
+        layout.addWidget(title_label)
+        
+        # 信息项（暂时使用默认值，后续可以从数据库读取）
+        info_items = [
+            ("标签:", "无"),
+            ("评分:", "⭐⭐⭐⭐⭐ (0/5)"),
+            ("筛选条件:", "无")
+        ]
+        
+        for label_text, value_text in info_items:
+            # 标签
+            label = QLabel(label_text)
+            label.setStyleSheet("color: #CCCCCC; font-size: 11px;")
+            layout.addWidget(label)
+            
+            # 值
+            value = QLabel(value_text)
+            value.setStyleSheet("color: #FFFFFF; font-size: 11px;")
+            layout.addWidget(value)
+        
+        return group
