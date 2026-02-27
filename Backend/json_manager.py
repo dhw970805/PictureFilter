@@ -432,8 +432,13 @@ class JsonFileManager:
             # 统计质量标记
             quality_stats = {}
             for photo in photos:
-                quality = photo.get("photo_metadata", {}).get("quality", "未审查")
-                quality_stats[quality] = quality_stats.get(quality, 0) + 1
+                # quality现在是数组格式，如["过曝", "欠曝"]，需要统计每个标签
+                quality_list = photo.get("photo_metadata", {}).get("quality", ["未审查"])
+                if not quality_list:
+                    quality_list = ["未审查"]
+                # 遍历数组中的所有标签进行统计
+                for quality in quality_list:
+                    quality_stats[quality] = quality_stats.get(quality, 0) + 1
             
             return {
                 "version": data.get("version"),

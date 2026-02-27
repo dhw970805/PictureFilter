@@ -2,13 +2,17 @@
 快捷工具栏组件
 """
 
-from PyQt6.QtWidgets import QToolBar
+from PyQt6.QtWidgets import QToolBar, QWidget, QSizePolicy
 from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 
 class ToolBar(QToolBar):
     """快捷工具栏组件"""
+    
+    # 定义信号
+    refresh_requested = pyqtSignal()  # 刷新请求信号
+    screening_requested = pyqtSignal()  # 筛查请求信号
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -76,6 +80,7 @@ class ToolBar(QToolBar):
         refresh_action = QAction("刷新", self)
         refresh_action.setShortcut("F5")
         refresh_action.setToolTip("刷新当前目录 (F5)")
+        refresh_action.triggered.connect(self.refresh_requested.emit)  # 连接刷新信号
         self.addAction(refresh_action)
         
         self.addSeparator()
@@ -115,6 +120,18 @@ class ToolBar(QToolBar):
         batch_action.setShortcut("Ctrl+B")
         batch_action.setToolTip("批量处理 (Ctrl+B)")
         self.addAction(batch_action)
+        
+        # 添加弹性空间，将筛查按钮推到最右侧
+        self.addSeparator()
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.addWidget(spacer)
+        
+        # 筛查按钮（最右侧）
+        screening_action = QAction("筛查", self)
+        screening_action.setToolTip("筛查照片")
+        screening_action.triggered.connect(self.screening_requested.emit)  # 连接筛查信号
+        self.addAction(screening_action)
     
     def get_action(self, action_name):
         """获取指定的动作"""

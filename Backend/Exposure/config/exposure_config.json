@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "description": "曝光检测阈值配置文件",
+  "last_updated": "2024-02-27",
+  "overexposure": {
+    "highlight_pixel_ratio_threshold": 0.05,
+    "rgb_max_channel_ratio_threshold": 0.03,
+    "histogram_highlight_ratio_threshold": 0.08,
+    "connected_overexposed_area_threshold": 0.02
+  },
+  "underexposure": {
+    "shadow_pixel_ratio_threshold": 0.15,
+    "rgb_min_channel_ratio_threshold": 0.10,
+    "histogram_shadow_ratio_threshold": 0.20,
+    "average_brightness_threshold": 80.0
+  }
+}

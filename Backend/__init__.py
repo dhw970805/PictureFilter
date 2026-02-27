@@ -26,8 +26,9 @@ from .exceptions import (
     FileCorruptedError, JsonWriteError
 )
 from .progress_tracker import ProgressTracker
+from .Exposure import ExposureDetector, ConfigManager
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     # Main functions
     'import_folder',
@@ -54,4 +55,7 @@ __all__ = [
     'JsonWriteError',
     # Utilities
     'ProgressTracker',
+    # Exposure detection
+    'ExposureDetector',
+    'ConfigManager',
 ]

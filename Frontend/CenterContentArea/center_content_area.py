@@ -398,14 +398,14 @@ class CenterContentArea(QWidget):
                 if not photo_metadata:
                     print(f"⚠️  照片 {i+1} 缺少 photo_metadata，尝试直接从 photo_data 读取")
                     file_info = photo_data.get("file_info", {})
-                    # 获取质量信息（数组格式）
-                    quality_list = photo_data.get("quality", ["未审查"])
-                    quality = quality_list[0] if quality_list else "未审查"
+                    # 获取质量信息（确保是列表格式）
+                    quality = photo_data.get("quality", "未审查")
+                    quality_list = [quality] if isinstance(quality, str) else quality
                 else:
                     file_info = photo_metadata.get("file_info", {})
-                    # 获取质量信息（数组格式）
-                    quality_list = photo_data.get("quality", ["未审查"])
-                    quality = quality_list[0] if quality_list else "未审查"
+                    # 获取质量信息（确保是列表格式）
+                    quality = photo_metadata.get("quality", "未审查")
+                    quality_list = [quality] if isinstance(quality, str) else quality
                 
                 file_path = file_info.get("file_path", "")
                 file_name = file_info.get("file_name", "")
@@ -414,9 +414,9 @@ class CenterContentArea(QWidget):
                 print(f"  {i+1}. {file_name}")
                 print(f"     文件路径: {file_path}")
                 print(f"     缩略图路径: {thumbnail_path}")
-                print(f"     质量: {quality}")
+                print(f"     质量: {quality_list}")
                 
-                files_to_display.append((file_path, file_name, thumbnail_path, quality))
+                files_to_display.append((file_path, file_name, thumbnail_path, quality_list))
             
             print(f"✅ 准备显示 {len(files_to_display)} 张照片")
         else:
@@ -457,13 +457,15 @@ class CenterContentArea(QWidget):
         """根据质量值返回颜色（RGB）"""
         color_map = {
             "未审查": (255, 215, 0),    # 黄色
+            "合格": (34, 197, 94),       # 绿色
+            "过曝": (239, 68, 68),       # 红色
+            "欠曝": (249, 115, 22),      # 橙色
             "优质": (34, 197, 94),      # 绿色
             "闭眼": (239, 68, 68),      # 红色
             "模糊": (168, 85, 247),      # 紫色
             "过暗": (249, 115, 22),     # 橙色
-            "过曝": (107, 114, 128),    # 灰色
             "需复核": (59, 130, 246),   # 亮蓝色
-            "表情不佳": (6, 182, 212)   # 青色
+            "表情不佳": (6, 182, 212),  # 青色
         }
         return color_map.get(quality, (255, 215, 0))  # 默认黄色
     
@@ -728,8 +730,10 @@ class CenterContentArea(QWidget):
         # 添加到内容布局
         self.content_layout.addLayout(detail_layout)
     
-    def create_grid_item(self, file_path, name, thumbnail_path, quality="未审查"):
+    def create_grid_item(self, file_path, name, thumbnail_path, quality_list=None):
         """创建网格视图项"""
+        if quality_list is None:
+            quality_list = ["未审查"]
         item_frame = QFrame()
         item_frame.setFixedSize(self.thumbnail_size + 20, self.thumbnail_size + 60)
         item_frame.setStyleSheet("""
@@ -783,26 +787,41 @@ class CenterContentArea(QWidget):
         else:
             self._set_default_thumbnail(thumbnail, file_path)
         
-        # 质量标签（覆盖在缩略图右上角）
-        quality_color = self.get_quality_color(quality)
-        color_css = f"rgb({quality_color[0]}, {quality_color[1]}, {quality_color[2]})"
+        # 质量标签（覆盖在缩略图右上角）- 支持多个标签
+        # 确保quality_list是列表格式
+        if isinstance(quality_list, str):
+            quality_list = [quality_list]
+        elif not quality_list:
+            quality_list = ["未审查"]
         
-        quality_label = QLabel(quality, thumbnail_container)
-        quality_label.setStyleSheet(f"""
-            QLabel {{
-                background-color: {color_css};
-                color: #FFFFFF;
-                padding: 2px 6px;
-                border-radius: 3px;
-                font-size: 10px;
-                font-weight: bold;
-            }}
-        """)
-        quality_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # 将质量标签定位到右上角（使用move方法）
-        quality_label.move(self.thumbnail_size - quality_label.width() - 5, 5)
-        quality_label.raise_()
+        # 创建多个标签，每个标签独立显示
+        y_offset = 5
+        for quality in quality_list:
+            quality_color = self.get_quality_color(quality)
+            color_css = f"rgb({quality_color[0]}, {quality_color[1]}, {quality_color[2]})"
+            
+            quality_label = QLabel(quality, thumbnail_container)
+            quality_label.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {color_css};
+                    color: #FFFFFF;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-size: 10px;
+                    font-weight: bold;
+                }}
+            """)
+            quality_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            # 计算标签宽度（更准确的估算）
+            label_width = len(quality) * 11 + 16
+            
+            # 将质量标签定位到右上角（从上到下排列）
+            quality_label.move(self.thumbnail_size - label_width - 5, y_offset)
+            quality_label.raise_()
+            
+            # 调整下一个标签的垂直位置
+            y_offset += 20  # 每个标签间隔20像素
         
         # 添加到布局
         item_layout.addWidget(thumbnail_container)

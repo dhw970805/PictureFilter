@@ -137,6 +137,32 @@ def calculate_file_hash(
     return hash_obj.hexdigest()
 
 
+def calculate_file_hash_from_path(file_path: str) -> str:
+    """
+    根据文件路径计算哈希值（简化版本，直接读取文件计算）
+    
+    Args:
+        file_path: 文件路径
+        
+    Returns:
+        SHA256哈希字符串
+    """
+    try:
+        path = Path(file_path)
+        
+        # 获取文件信息
+        file_name = path.name
+        file_size_bytes = path.stat().st_size
+        file_format = get_file_format(file_path)
+        creation_time, _ = get_file_timestamps(file_path)
+        
+        # 使用原有的计算方法
+        return calculate_file_hash(file_name, file_path, file_size_bytes, file_format, creation_time)
+    except Exception as e:
+        # 如果失败，返回一个基于文件路径的简单哈希
+        return hashlib.sha256(file_path.encode('utf-8')).hexdigest()
+
+
 def format_file_size(size_bytes: int) -> str:
     """
     格式化文件大小为人类可读格式
